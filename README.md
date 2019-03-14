@@ -1,5 +1,7 @@
 # AWS VPN Controller
 
+[![Build Status](https://travis-ci.org/awslabs/aws-vpn-controller.svg?branch=master)](https://travis-ci.org/awslabs/aws-vpn-controller)
+
 ## Overview
 
 The AWS VPN Controller allows you to create and delete AWS VPNs and connect them to your VPCs using Kubernetes Custom Resource Definitions.

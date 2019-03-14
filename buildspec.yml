@@ -1,0 +1,35 @@
+version: 0.2
+
+env:
+  variables:
+    PACKAGE: github.com/awslabs/aws-vpn-controller
+    KUBEBUILDER_CONTROLPLANE_START_TIMEOUT: "60s"
+
+phases:
+  install:
+    commands:
+      # This is necessary for building with docker https://docs.aws.amazon.com/codebuild/latest/userguide/sample-docker-custom-image.html
+      - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 --storage-driver=overlay& >/dev/null 2>&1
+      - timeout 15 sh -c "until docker info; do echo .; sleep 1; done"
+  pre_build:
+    commands:
+      - echo "installing kubebuilder binaries"
+      - curl -L -O https://github.com/kubernetes-sigs/kubebuilder/releases/download/v1.0.5/kubebuilder_1.0.5_linux_amd64.tar.gz
+      - tar -zxvf kubebuilder_1.0.5_linux_amd64.tar.gz
+      - mv kubebuilder_1.0.5_linux_amd64 /usr/local/kubebuilder
+      - export PATH=$PATH:/usr/local/kubebuilder/bin
+      - echo Building version ${CODEBUILD_RESOLVED_SOURCE_VERSION}
+      - aws ecr get-login --no-include-email --region ${AWS_REGION} | /bin/bash -
+      - mkdir -p /go/src/${PACKAGE}
+      - cp -a ${CODEBUILD_SRC_DIR}/.  /go/src/${PACKAGE}
+      - cd /go/src/${PACKAGE}
+      - go test ./...
+  build:
+    commands:
+      - cd /go/src/${PACKAGE}
+      - docker build . -t ${ECR_REGISTRY_HOSTNAME}/aws-vpn-controller/aws-vpn-controller:${CODEBUILD_RESOLVED_SOURCE_VERSION}
+
+  post_build:
+    commands:
+      - cd /go/src/${PACKAGE}
+      - IMG=${ECR_REGISTRY_HOSTNAME}/aws-vpn-controller/aws-vpn-controller:${CODEBUILD_RESOLVED_SOURCE_VERSION} make docker-push

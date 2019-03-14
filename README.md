@@ -196,7 +196,7 @@ sed -i'' -e 's@image: .*@image: '"aws-vpn-controller:latest"'@' ./config/default
 
 ### Push
 
-This assumes your have a Docker repository configured.
+This assumes you have a Docker repository configured.
 
 ```sh
 $ $ IMG="<your repo>/aws-vpn-controller:latest" make docker-push

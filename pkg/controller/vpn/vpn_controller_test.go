@@ -62,12 +62,14 @@ func newTestReconciler(mgr manager.Manager) *ReconcileVPN {
 		ec2Svc: &awsHelper.MockEC2API{},
 	}
 }
+
 func TestGetStackName(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 	instance := &networkingv1alpha1.VPN{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "default"}}
 	name := getStackName(instance)
 	g.Expect(name).To(gomega.Equal("awsvpnctl-default-foo"))
 }
+
 func TestReconcile(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 	instance := &networkingv1alpha1.VPN{
@@ -75,7 +77,7 @@ func TestReconcile(t *testing.T) {
 		Spec: networkingv1alpha1.VPNSpec{
 			VpcID: "test-VpcID",
 			VPNConnections: []networkingv1alpha1.VPNConnection{
-				networkingv1alpha1.VPNConnection{
+				{
 					CustomerGatewayIP: "test-CustomerGatewayIP",
 					ConfigSecretName:  "test-configsecretname",
 				},
@@ -107,19 +109,6 @@ func TestReconcile(t *testing.T) {
 		mgrStopped.Wait()
 	}()
 
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-configsecretname",
-			Namespace: "default",
-		},
-		Data: map[string][]byte{},
-	}
-	err = c.Create(context.TODO(), secret)
-	if err != nil {
-		t.Logf("failed to create test secret: %v", err)
-		return
-	}
-
 	// Create the VPN object and expect the Reconcile and Deployment to be created
 	err = c.Create(context.TODO(), instance)
 	if apierrors.IsInvalid(err) {
@@ -138,6 +127,12 @@ func TestReconcile(t *testing.T) {
 
 	reconcile.cfnSvc = &awsHelper.MockCloudformationAPI{Status: cloudformation.StackStatusCreateComplete}
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
+
+	secret := &corev1.Secret{}
+	g.Eventually(func() (string, error) {
+		err := c.Get(context.TODO(), types.NamespacedName{Namespace: "default", Name: "test-configsecretname"}, secret)
+		return secret.Name, err
+	}, timeout).Should(gomega.Equal("test-configsecretname"))
 
 	err = c.Delete(context.TODO(), instance)
 	g.Expect(err).NotTo(gomega.HaveOccurred())

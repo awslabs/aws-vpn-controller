@@ -35,7 +35,6 @@ func TestStorageVPN(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: VPNSpec{
-			VpcID: "test-vpc-id",
 			VPNConnections: []VPNConnection{
 				VPNConnection{
 					CustomerGatewayIP: "test-cgw1-ip",

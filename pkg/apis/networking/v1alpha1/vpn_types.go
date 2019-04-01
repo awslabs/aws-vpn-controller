@@ -21,7 +21,10 @@ import (
 
 // VPNSpec defines the desired state of VPN
 type VPNSpec struct {
-	VpcID string `json:"vpcid"`
+	// VpcID is the VPC that the vpn will attach to. Because the controller does not reuse VPN Gateways
+	// there can only be one VPN per VPC.  The default is the VPC the controller is running in.
+	// +optional
+	VpcID string `json:"vpcid,omitempty"`
 	// +kubebuilder:validation:MaxItems=2
 	// +kubebuilder:validation:MinItems=1
 	VPNConnections []VPNConnection `json:"vpnconnections"`

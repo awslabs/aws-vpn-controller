@@ -23,14 +23,17 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
+	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	networkingv1alpha1 "github.com/awslabs/aws-vpn-controller/pkg/apis/networking/v1alpha1"
 	awsHelper "github.com/awslabs/aws-vpn-controller/pkg/aws"
 	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -142,4 +145,96 @@ func TestReconcile(t *testing.T) {
 	err = c.Delete(context.TODO(), instance)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
+}
+
+func Test_getVpcID(t *testing.T) {
+
+	badNode := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "badeNode",
+		},
+		Spec: corev1.NodeSpec{
+			ProviderID: "thisisn'tvalid",
+		},
+	}
+	goodNodes := []runtime.Object{
+		&corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "goodNode1",
+			},
+			Spec: corev1.NodeSpec{
+				ProviderID: "aws:///us-west-2a/i-0123456789abcdef1",
+			},
+		},
+		&corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "goodNode2",
+			},
+			Spec: corev1.NodeSpec{
+				ProviderID: "aws:///us-west-2a/i-fedcba9876543210f",
+			},
+		},
+	}
+
+	type args struct {
+		nodeLister client.Client
+		ec2Svc     ec2iface.EC2API
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		// No way to force fail of fake client.
+		// {
+		// 	name: "should fail if no nodes",
+		// },
+		{
+			name: "should fail if nodes are not ec2 instances",
+			args: args{
+				nodeLister: fake.NewFakeClient(badNode),
+			},
+			wantErr: true,
+		},
+		{
+			name: "should fail if vpc ids don't match",
+			args: args{
+				nodeLister: fake.NewFakeClient(goodNodes...),
+				ec2Svc: &awsHelper.MockEC2API{
+					VpcIds: map[string]string{
+						"i-1234": "vpc1",
+						"i-5678": "vpc2",
+						"i-90ab": "vpc2",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "should return vpcid",
+			args: args{
+				nodeLister: fake.NewFakeClient(goodNodes...),
+				ec2Svc: &awsHelper.MockEC2API{
+					VpcIds: map[string]string{
+						"i-5678": "vpc2",
+						"i-90ab": "vpc2",
+					},
+				},
+			},
+			want: "vpc2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getVpcID(tt.args.nodeLister, tt.args.ec2Svc)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getVpcID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("getVpcID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

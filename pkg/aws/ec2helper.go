@@ -16,6 +16,28 @@ type RouteTableIDs struct {
 	Private string
 }
 
+// GetVpcIDs retrieves a list of unique vpcIDs from the provided nodes.
+func GetVpcIDs(ec2Svc ec2iface.EC2API, nodes []*string) ([]string, error) {
+	resp, err := ec2Svc.DescribeInstances(&ec2.DescribeInstancesInput{
+		InstanceIds: nodes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	ids := map[string]struct{}{}
+	for _, reservation := range resp.Reservations {
+		for _, instance := range reservation.Instances {
+			ids[*instance.VpcId] = struct{}{}
+		}
+	}
+	ret := make([]string, 0, len(ids))
+	for k := range ids {
+		ret = append(ret, k)
+	}
+
+	return ret, nil
+}
+
 //GetRouteTableIDs takes a vpn instance and returns its public and private routetable ids
 func GetRouteTableIDs(ec2Svc ec2iface.EC2API, VpcID string) (RouteTableIDs, error) {
 	ids := RouteTableIDs{}

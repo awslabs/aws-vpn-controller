@@ -33,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	networkingv1alpha1 "github.com/awslabs/aws-vpn-controller/pkg/apis/networking/v1alpha1"
 	awsHelper "github.com/awslabs/aws-vpn-controller/pkg/aws"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -92,14 +91,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &networkingv1alpha1.VPN{},
-	})
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -152,7 +143,6 @@ func removeString(s []string, t string) []string {
 
 // Reconcile reads that state of the cluster for a VPN object and makes changes based on the state read
 // and what is in the VPN.Spec
-// Automatically generate RBAC rules to allow the Controller to read and write Deployments
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=networking.amazonaws.com,resources=vpns,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.amazonaws.com,resources=vpns/status,verbs=get;update;patch

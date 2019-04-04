@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -193,13 +194,6 @@ func (r *ReconcileVPN) Reconcile(request reconcile.Request) (reconcile.Result, e
 				return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 			}
 
-			log.Info("deleting secrets", "instance", instance.GetName())
-			for _, vpn := range instance.Spec.VPNConnections {
-				if err = r.deleteSecret(vpn.ConfigSecretName, instance.Namespace); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
-
 			log.Info("deleting stack", "stackName", stackName, "instance", instance.GetName())
 			_, err = r.cfnSvc.DeleteStack(&cloudformation.DeleteStackInput{StackName: aws.String(stackName)})
 			if err != nil {
@@ -242,7 +236,7 @@ func (r *ReconcileVPN) Reconcile(request reconcile.Request) (reconcile.Result, e
 				return reconcile.Result{}, err
 			}
 
-			if err = r.storeVPNConfigToSecret(c.ConfigSecretName, instance.Namespace, customerGatewayConfig); err != nil {
+			if err = r.storeVPNConfigToSecret(c.ConfigSecretName, instance, customerGatewayConfig); err != nil {
 				return reconcile.Result{}, err
 			}
 		}
@@ -265,18 +259,24 @@ func (r *ReconcileVPN) Reconcile(request reconcile.Request) (reconcile.Result, e
 
 }
 
-func (r *ReconcileVPN) createSecret(secretname string, namespace string, vpnConfig string) error {
+func (r *ReconcileVPN) createSecret(secretname string, vpn *networkingv1alpha1.VPN, vpnConfig string) error {
 	log.Info("creating secret", "secretName", secretname)
-	if err := r.Create(context.TODO(), &corev1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretname,
-			Namespace: namespace,
+			Namespace: vpn.Namespace,
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
 			"VPNConfiguration": []byte(vpnConfig),
 		},
-	}); err != nil {
+	}
+
+	if err := controllerutil.SetControllerReference(vpn, secret, r.scheme); err != nil {
+		return err
+	}
+
+	if err := r.Create(context.TODO(), secret); err != nil {
 		log.Error(err, "error creating secret", "secretName", secretname)
 		return err
 	}
@@ -284,32 +284,11 @@ func (r *ReconcileVPN) createSecret(secretname string, namespace string, vpnConf
 	return nil
 }
 
-func (r *ReconcileVPN) deleteSecret(secretname string, namespace string) error {
-	log.Info("deleting secret", "secretName", secretname)
-	found := &corev1.Secret{}
-	err := r.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: secretname}, found)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			log.Info("secret not found", "secretName", secretname)
-			return nil
-		}
-		log.Error(err, "error getting secret", "secretName", secretname)
-		return err
-	}
-
-	if err = r.Delete(context.TODO(), found); err != nil {
-		log.Error(err, "error deleting secret", "secretName", secretname)
-		return err
-	}
-
-	return nil
-}
-
-func (r *ReconcileVPN) storeVPNConfigToSecret(secretname string, namespace string, vpnConfig string) error {
+func (r *ReconcileVPN) storeVPNConfigToSecret(secretname string, vpn *networkingv1alpha1.VPN, vpnConfig string) error {
 	secret := &corev1.Secret{}
-	if err := r.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: secretname}, secret); err != nil {
+	if err := r.Get(context.TODO(), types.NamespacedName{Namespace: vpn.Namespace, Name: secretname}, secret); err != nil {
 		if errors.IsNotFound(err) {
-			return r.createSecret(secretname, namespace, vpnConfig)
+			return r.createSecret(secretname, vpn, vpnConfig)
 		}
 		return err
 	}

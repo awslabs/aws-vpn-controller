@@ -32,13 +32,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	networkingv1alpha1 "github.com/awslabs/aws-vpn-controller/pkg/apis/networking/v1alpha1"
 	awsHelper "github.com/awslabs/aws-vpn-controller/pkg/aws"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -87,14 +88,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 	// Watch for changes to VPN
 	err = c.Watch(&source.Kind{Type: &networkingv1alpha1.VPN{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &networkingv1alpha1.VPN{},
-	})
 	if err != nil {
 		return err
 	}
@@ -243,7 +236,7 @@ func (r *ReconcileVPN) Reconcile(request reconcile.Request) (reconcile.Result, e
 				return reconcile.Result{}, err
 			}
 
-			if err = r.updateVPNConfigToSecret(c.ConfigSecretName, instance.Namespace, customerGatewayConfig); err != nil {
+			if err = r.storeVPNConfigToSecret(c.ConfigSecretName, instance, customerGatewayConfig); err != nil {
 				return reconcile.Result{}, err
 			}
 		}
@@ -266,11 +259,37 @@ func (r *ReconcileVPN) Reconcile(request reconcile.Request) (reconcile.Result, e
 
 }
 
-func (r *ReconcileVPN) updateVPNConfigToSecret(secretname string, namespace string, vpnConfig string) error {
+func (r *ReconcileVPN) createSecret(secretname string, vpn *networkingv1alpha1.VPN, vpnConfig string) error {
+	log.Info("creating secret", "secretName", secretname)
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretname,
+			Namespace: vpn.Namespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"VPNConfiguration": []byte(vpnConfig),
+		},
+	}
+
+	if err := controllerutil.SetControllerReference(vpn, secret, r.scheme); err != nil {
+		log.Error(err, "error setting owner reference to secret", "secretName", secretname)
+		return err
+	}
+
+	if err := r.Create(context.TODO(), secret); err != nil {
+		log.Error(err, "error creating secret", "secretName", secretname)
+		return err
+	}
+
+	return nil
+}
+
+func (r *ReconcileVPN) storeVPNConfigToSecret(secretname string, vpn *networkingv1alpha1.VPN, vpnConfig string) error {
 	secret := &corev1.Secret{}
-	if err := r.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: secretname}, secret); err != nil {
+	if err := r.Get(context.TODO(), types.NamespacedName{Namespace: vpn.Namespace, Name: secretname}, secret); err != nil {
 		if errors.IsNotFound(err) {
-			return fmt.Errorf("Unable to find the secret %s/%s", namespace, secret)
+			return r.createSecret(secretname, vpn, vpnConfig)
 		}
 		return err
 	}

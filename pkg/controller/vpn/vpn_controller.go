@@ -273,6 +273,7 @@ func (r *ReconcileVPN) createSecret(secretname string, vpn *networkingv1alpha1.V
 	}
 
 	if err := controllerutil.SetControllerReference(vpn, secret, r.scheme); err != nil {
+		log.Error(err, "error setting owner reference to secret", "secretName", secretname)
 		return err
 	}
 

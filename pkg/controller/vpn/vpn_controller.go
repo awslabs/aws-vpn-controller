@@ -286,7 +286,7 @@ func (r *ReconcileVPN) createVPNStack(instance *networkingv1alpha1.VPN) error {
 	if vpcID == "" {
 		vpcID, err = getVpcID(r, r.ec2Svc)
 		if err != nil {
-			log.Error(err, "could not determin the vpcID")
+			log.Error(err, "could not determine the vpcID")
 			return err
 		}
 	}

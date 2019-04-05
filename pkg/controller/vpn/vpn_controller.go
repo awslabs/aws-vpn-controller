@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -107,7 +108,8 @@ type ReconcileVPN struct {
 }
 
 type cfnTemplateInput struct {
-	VPNSpec             *networkingv1alpha1.VPNSpec
+	VpcID               string
+	VPNConnections      []networkingv1alpha1.VPNConnection
 	PublicRouteTableID  string
 	PrivateRouteTableID string
 }
@@ -143,12 +145,11 @@ func removeString(s []string, t string) []string {
 
 // Reconcile reads that state of the cluster for a VPN object and makes changes based on the state read
 // and what is in the VPN.Spec
-// Automatically generate RBAC rules to allow the Controller to read and write Deployments
-// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=networking.amazonaws.com,resources=vpns,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.amazonaws.com,resources=vpns/status,verbs=get;update;patch
 func (r *ReconcileVPN) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+	log := log.WithValues("name", request.Name)
 
 	instance := &networkingv1alpha1.VPN{}
 	err := r.Get(context.TODO(), request.NamespacedName, instance)
@@ -308,13 +309,24 @@ func (r *ReconcileVPN) storeVPNConfigToSecret(secretname string, vpn *networking
 }
 
 func (r *ReconcileVPN) createVPNStack(instance *networkingv1alpha1.VPN) error {
-	rtbs, err := awsHelper.GetRouteTableIDs(r.ec2Svc, instance.Spec.VpcID)
+	vpcID := instance.Spec.VpcID
+	var err error
+	if vpcID == "" {
+		vpcID, err = getVpcID(r, r.ec2Svc)
+		if err != nil {
+			log.Error(err, "could not determine the vpcID")
+			return err
+		}
+	}
+
+	rtbs, err := awsHelper.GetRouteTableIDs(r.ec2Svc, vpcID)
 	if err != nil {
 		return err
 	}
 
 	cfnTemplate, err := awsHelper.GetCFNTemplateBody(vpnCFNTemplate, cfnTemplateInput{
-		VPNSpec:             &instance.Spec,
+		VpcID:               vpcID,
+		VPNConnections:      instance.Spec.VPNConnections,
 		PrivateRouteTableID: rtbs.Private,
 		PublicRouteTableID:  rtbs.Public,
 	})
@@ -330,4 +342,39 @@ func (r *ReconcileVPN) createVPNStack(instance *networkingv1alpha1.VPN) error {
 	})
 
 	return err
+}
+
+// getVpcID takes the nodes of the cluster, and returns the vpcID of them if they all match.
+func getVpcID(nodeLister client.Client, ec2Svc ec2iface.EC2API) (string, error) {
+	// TODO get a list of nodes
+	nodes := &corev1.NodeList{}
+	err := nodeLister.List(context.TODO(), &client.ListOptions{}, nodes)
+	if err != nil {
+		log.Error(err, "error getting nodes")
+		return "", err
+	}
+
+	instanceIds := []*string{}
+	for _, node := range nodes.Items {
+		parts := strings.Split(node.Spec.ProviderID, "/")
+		if len(parts) < 5 {
+			err := fmt.Errorf("node provider spec is not valid")
+			log.WithValues("instanceID", node.Spec.ProviderID).Error(err, "could not parse ProviderID")
+			return "", err
+		}
+		instanceIds = append(instanceIds, aws.String(parts[4]))
+	}
+
+	ids, err := awsHelper.GetVpcIDs(ec2Svc, instanceIds)
+	if err != nil {
+		log.Error(err, "describing ec2 instances")
+		return "", err
+	}
+	if len(ids) > 1 {
+		err := fmt.Errorf("multiple vpcid found")
+		log.WithValues("vpcIds", ids).Error(err, "more then one vpcid found not guessing")
+		return "", err
+	}
+
+	return ids[0], nil
 }

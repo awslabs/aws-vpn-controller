@@ -53,6 +53,7 @@ func (m *MockCloudformationAPI) DeleteStack(*cloudformation.DeleteStackInput) (*
 //MockEC2API mocks the ec2 api interface
 type MockEC2API struct {
 	ec2iface.EC2API
+	VpcIds map[string]string
 }
 
 //DescribeRouteTables mocks the cloudformation DescribeRouteTables call and returns test output
@@ -105,7 +106,7 @@ func (m *MockEC2API) DescribeRouteTables(*ec2.DescribeRouteTablesInput) (*ec2.De
 }
 
 //DescribeVpnConnections mocks the cloudformation DescribeVpnConnections call and returns test output
-func (m MockEC2API) DescribeVpnConnections(*ec2.DescribeVpnConnectionsInput) (*ec2.DescribeVpnConnectionsOutput, error) {
+func (m *MockEC2API) DescribeVpnConnections(*ec2.DescribeVpnConnectionsInput) (*ec2.DescribeVpnConnectionsOutput, error) {
 	return &ec2.DescribeVpnConnectionsOutput{
 		VpnConnections: []*ec2.VpnConnection{
 			&ec2.VpnConnection{
@@ -125,4 +126,20 @@ func (m MockEC2API) DescribeVpnConnections(*ec2.DescribeVpnConnectionsInput) (*e
 			},
 		},
 	}, nil
+}
+
+//DescribeInstances mocks the ec2 DescribeInstances call and returns the instances stored in the Mock
+func (m *MockEC2API) DescribeInstances(*ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error) {
+	out := &ec2.DescribeInstancesOutput{
+		Reservations: []*ec2.Reservation{},
+	}
+	for instanceId, vpcID := range m.VpcIds {
+		out.Reservations = append(out.Reservations, &ec2.Reservation{
+			Instances: []*ec2.Instance{&ec2.Instance{
+				InstanceId: aws.String(instanceId),
+				VpcId:      aws.String(vpcID),
+			}},
+		})
+	}
+	return out, nil
 }

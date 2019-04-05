@@ -29,6 +29,9 @@ spec:
         spec:
           properties:
             vpcid:
+              description: VpcID is the VPC that the vpn will attach to. Because the
+                controller does not reuse VPN Gateways there can only be one VPN per
+                VPC.  The default is the VPC the controller is running in.
               type: string
             vpnconnections:
               items:
@@ -45,7 +48,6 @@ spec:
               minItems: 1
               type: array
           required:
-          - vpcid
           - vpnconnections
           type: object
         status:

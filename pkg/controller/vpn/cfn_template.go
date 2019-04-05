@@ -14,7 +14,7 @@ Resources:
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      VpcId: {{ .VPNSpec.VpcID }}
+      VpcId: {{ .VpcID }}
       VpnGatewayId: !Ref 'VPNGateway'
 
   VPNGatewayRoutePropagation:
@@ -26,7 +26,7 @@ Resources:
       VpnGatewayId: !Ref 'VPNGateway'
     DependsOn: VPCGatewayAttachment
 
-{{- range $i, $e := .VPNSpec.VPNConnections }}
+{{- range $i, $e := .VPNConnections }}
 
   CustomerGateway{{ $i }}:
     Type: AWS::EC2::CustomerGateway
@@ -45,7 +45,7 @@ Resources:
 {{- end }} 
 
 Outputs:
-{{- range $i, $e := .VPNSpec.VPNConnections }}
+{{- range $i, $e := .VPNConnections }}
   
   CustomerGateway{{ $i }}:
       Description: Customer Gateway {{ $i }}

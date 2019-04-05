@@ -5,7 +5,6 @@ metadata:
     controller-tools.k8s.io: "1.0"
   name: samplevpn
 spec:
-  vpcid: vpc-03f65a11d069da0d6
   vpnconnections:
     - customergatewayip: 8.8.8.8
       configsecretname: default-samplevpn-vpnconnection1-config

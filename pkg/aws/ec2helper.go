@@ -10,12 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 )
 
-// RouteTableIDs contains IDs for the public and private route tables for a VPC
-type RouteTableIDs struct {
-	Public  string
-	Private string
-}
-
 // GetVpcIDs retrieves a list of unique vpcIDs from the provided nodes.
 func GetVpcIDs(ec2Svc ec2iface.EC2API, nodes []*string) ([]string, error) {
 	resp, err := ec2Svc.DescribeInstances(&ec2.DescribeInstancesInput{
@@ -38,37 +32,30 @@ func GetVpcIDs(ec2Svc ec2iface.EC2API, nodes []*string) ([]string, error) {
 	return ret, nil
 }
 
-//GetRouteTableIDs takes a vpn instance and returns its public and private routetable ids
-func GetRouteTableIDs(ec2Svc ec2iface.EC2API, VpcID string) (RouteTableIDs, error) {
-	ids := RouteTableIDs{}
+//GetRouteTableIDs takes vpc ID and returns its routetable ids
+func GetRouteTableIDs(ec2Svc ec2iface.EC2API, VpcID string) ([]string, error) {
+	ids := []string{}
 	filter := []*ec2.Filter{
-		&ec2.Filter{
+		{
 			Name:   aws.String("vpc-id"),
 			Values: []*string{aws.String(VpcID)},
 		},
 	}
 	routeTables, err := ec2Svc.DescribeRouteTables(&ec2.DescribeRouteTablesInput{Filters: filter})
 	if err != nil {
-		return RouteTableIDs{}, err
+		return ids, err
 	}
 
 	for _, r := range routeTables.RouteTables {
-		for _, v := range r.Tags {
-			if aws.StringValue(v.Value) == "PublicRouteTable" {
-				ids.Public = aws.StringValue(r.RouteTableId)
-			}
-			if aws.StringValue(v.Value) == "PrivateRouteTable" {
-				ids.Private = aws.StringValue(r.RouteTableId)
-			}
-		}
+		ids = append(ids, aws.StringValue(r.RouteTableId))
 	}
 
-	if ids.Private != "" && ids.Public != "" {
+	if len(ids) > 0 {
 		return ids, nil
 	}
 
 	err = fmt.Errorf("route table ids not found")
-	return RouteTableIDs{}, err
+	return ids, err
 
 }
 
@@ -80,7 +67,7 @@ func GetCustomerGatewayConfig(ec2Svc ec2iface.EC2API, customerGatewayIP string, 
 			customerGatewayID := *output.OutputValue
 
 			vpnFilter := []*ec2.Filter{
-				&ec2.Filter{
+				{
 					Name:   aws.String("customer-gateway-id"),
 					Values: []*string{aws.String(customerGatewayID)},
 				},

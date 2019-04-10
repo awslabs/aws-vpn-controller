@@ -108,10 +108,9 @@ type ReconcileVPN struct {
 }
 
 type cfnTemplateInput struct {
-	VpcID               string
-	VPNConnections      []networkingv1alpha1.VPNConnection
-	PublicRouteTableID  string
-	PrivateRouteTableID string
+	VpcID          string
+	VPNConnections []networkingv1alpha1.VPNConnection
+	RouteTableIDs  []string
 }
 
 // Status Codes for the VPN Object
@@ -325,10 +324,9 @@ func (r *ReconcileVPN) createVPNStack(instance *networkingv1alpha1.VPN) error {
 	}
 
 	cfnTemplate, err := awsHelper.GetCFNTemplateBody(vpnCFNTemplate, cfnTemplateInput{
-		VpcID:               vpcID,
-		VPNConnections:      instance.Spec.VPNConnections,
-		PrivateRouteTableID: rtbs.Private,
-		PublicRouteTableID:  rtbs.Public,
+		VpcID:          vpcID,
+		VPNConnections: instance.Spec.VPNConnections,
+		RouteTableIDs:  rtbs,
 	})
 	if err != nil {
 		return err

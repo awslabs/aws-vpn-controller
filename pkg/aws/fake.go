@@ -71,14 +71,10 @@ func (m *MockEC2API) DescribeRouteTables(*ec2.DescribeRouteTablesInput) (*ec2.De
 			},
 				OwnerId:         aws.String("test-OwnerId"),
 				PropagatingVgws: []*ec2.PropagatingVgw{&ec2.PropagatingVgw{}},
-				RouteTableId:    aws.String("PublicRouteTableId"),
+				RouteTableId:    aws.String("RouteTableId1"),
 				Routes: []*ec2.Route{
 					&ec2.Route{},
 				},
-				Tags: []*ec2.Tag{&ec2.Tag{
-					Key:   aws.String("foo"),
-					Value: aws.String("PublicRouteTable"),
-				}},
 				VpcId: aws.String("test-vpc-id"),
 			},
 			&ec2.RouteTable{Associations: []*ec2.RouteTableAssociation{
@@ -91,14 +87,26 @@ func (m *MockEC2API) DescribeRouteTables(*ec2.DescribeRouteTablesInput) (*ec2.De
 			},
 				OwnerId:         aws.String("test-OwnerId"),
 				PropagatingVgws: []*ec2.PropagatingVgw{&ec2.PropagatingVgw{}},
-				RouteTableId:    aws.String("PrivateRouteTableId"),
+				RouteTableId:    aws.String("RouteTableId2"),
 				Routes: []*ec2.Route{
 					&ec2.Route{},
 				},
-				Tags: []*ec2.Tag{&ec2.Tag{
-					Key:   aws.String("foo"),
-					Value: aws.String("PrivateRouteTable"),
-				}},
+				VpcId: aws.String("test-vpc-id"),
+			},
+			&ec2.RouteTable{Associations: []*ec2.RouteTableAssociation{
+				&ec2.RouteTableAssociation{
+					Main:                    aws.Bool(true),
+					RouteTableAssociationId: aws.String("test-RouteTableAssociationId"),
+					RouteTableId:            aws.String("test-RouteTableId"),
+					SubnetId:                aws.String("test-SubnetId"),
+				},
+			},
+				OwnerId:         aws.String("test-OwnerId"),
+				PropagatingVgws: []*ec2.PropagatingVgw{&ec2.PropagatingVgw{}},
+				RouteTableId:    aws.String("RouteTableId3"),
+				Routes: []*ec2.Route{
+					&ec2.Route{},
+				},
 				VpcId: aws.String("test-vpc-id"),
 			},
 		},

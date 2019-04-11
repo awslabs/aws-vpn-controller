@@ -21,8 +21,9 @@ Resources:
     Type: AWS::EC2::VPNGatewayRoutePropagation
     Properties:
       RouteTableIds:
-        - {{ .PublicRouteTableID }}
-        - {{ .PrivateRouteTableID }}
+{{- range $i, $e := .RouteTableIDs }}
+        - {{ $e }}
+{{- end }}
       VpnGatewayId: !Ref 'VPNGateway'
     DependsOn: VPCGatewayAttachment
 

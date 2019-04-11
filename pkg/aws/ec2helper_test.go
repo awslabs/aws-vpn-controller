@@ -15,22 +15,19 @@ func TestGetRouteTableIDs(t *testing.T) {
 		name     string
 		EC2API   *MockEC2API
 		VpcID    string
-		expected RouteTableIDs
+		expected []string
 	}{
 		{
-			name:   "Returns both a public and private route table id",
-			EC2API: &MockEC2API{},
-			VpcID:  "test-vpc-id",
-			expected: RouteTableIDs{
-				Public:  "PublicRouteTableId",
-				Private: "PrivateRouteTableId",
-			},
+			name:     "Returns both a public and private route table id",
+			EC2API:   &MockEC2API{},
+			VpcID:    "test-vpc-id",
+			expected: []string{"RouteTableId1", "RouteTableId2", "RouteTableId3"},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result, _ := GetRouteTableIDs(tc.EC2API, tc.VpcID)
-			if result != tc.expected {
+			if !reflect.DeepEqual(result, tc.expected) {
 				t.Errorf(`Expected result %v, Got %v`, tc.expected, result)
 			}
 		})

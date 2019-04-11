@@ -21,7 +21,7 @@ func TestGetRouteTableIDs(t *testing.T) {
 			name:     "Returns both a public and private route table id",
 			EC2API:   &MockEC2API{},
 			VpcID:    "test-vpc-id",
-			expected: []string{"PublicRouteTableId", "PrivateRouteTableId"},
+			expected: []string{"RouteTableId1", "RouteTableId2", "RouteTableId3"},
 		},
 	}
 	for _, tc := range tests {
